@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Port Check for Single Host</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #87CEFA; /* Light sky blue */
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 20px;
+      color: #333;
+      font-size: 24px;
+    }
+    label {
+      display: block;
+      text-align: left;
+      margin-bottom: 8px;
+      font-size: 16px;
+      color: #333;
+    }
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    .button-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+    }
+    .button-container button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+    }
+    .submit-btn {
+      background-color: #007BFF;
+    }
+    .back-btn {
+      background-color: #6c757d;
+      text-decoration: none;
+      display: inline-block;
+      padding: 10px 20px;
+      font-size: 16px;
+      color: #fff;
+      border-radius: 4px;
+    }
+    /* Progress container styles */
+    #progressContainer {
+      display: none;
+      text-align: center;
+      margin-top: 20px;
+    }
+    #scanProgress {
+      width: 100%;
+      height: 20px;
+    }
+  </style>
+  <!-- Include Socket.IO from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      var socket = io({ reconnection: false });
+      
+      socket.on('connect', function(){
+        console.log("Connected to Socket.IO");
+      });
+      
+      // Listen for progress updates
+      socket.on('update', function(data){
+        console.log(data.message);
+        document.getElementById("progressMessage").innerText = data.message;
+        document.getElementById("scanProgress").value = data.progress;
+      });
+      
+      // On scan completion, redirect to the results page
+      socket.on('completion', function(data){
+        window.location.href = '/port_single_results';
+      });
+      
+      // Handle form submission
+      window.submitForm = function(e) {
+        e.preventDefault();
+        var hostname = document.getElementById("hostname").value.trim();
+        var startPort = document.getElementById("start_port").value.trim();
+        var endPort = document.getElementById("end_port").value.trim();
+        if (!hostname || !startPort || !endPort) {
+          alert("Please fill in all fields.");
+          return false;
+        }
+        // Show the progress container
+        document.getElementById("progressContainer").style.display = "block";
+        // Emit the 'start_port_scan' event with the input data
+        socket.emit('start_port_scan', {
+          hostname: hostname,
+          start_port: parseInt(startPort),
+          end_port: parseInt(endPort)
+        });
+        // Disable the submit button to prevent duplicate submissions
+        document.getElementById("check_button").disabled = true;
+        return false;
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Port Check for Single Host</h1>
+    <form onsubmit="submitForm(event)">
+      <label for="hostname">Hostname:</label>
+      <input type="text" name="hostname" id="hostname" required>
+      
+      <label for="start_port">Start Port:</label>
+      <input type="number" name="start_port" id="start_port" required>
+      
+      <label for="end_port">End Port:</label>
+      <input type="number" name="end_port" id="end_port" required>
+      
+      <div class="button-container">
+        <button type="submit" id="check_button" class="submit-btn">Check</button>
+        <a href="{{ url_for('home') }}" class="back-btn">Back to Home</a>
+      </div>
+    </form>
+    
+    <!-- Progress Container -->
+    <div id="progressContainer">
+      <p id="progressMessage">Scanning in progress...</p>
+      <progress id="scanProgress" value="0" max="100"></progress>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bulk Port Scan Progress</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 8px; text-align: center; }
+    #progressBar { width: 100%; background: #ddd; border-radius: 4px; margin: 20px 0; }
+    #progressBar div { height: 20px; background: #28a745; width: 0%; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Bulk Port Scan Progress</h1>
+    <p id="progressMessage">Initializing bulk scan...</p>
+    <div id="progressBar"><div></div></div>
+  </div>
+  <script>
+    // Connect to the Socket.IO namespace for bulk scanning.
+    var socket = io('/bulk', { reconnection: false });
+    socket.on('connect', function() {
+      console.log('Connected to bulk scan namespace');
+    });
+    socket.on('update', function(data) {
+      document.getElementById('progressMessage').innerText = data.message;
+      document.getElementById('progressBar').firstElementChild.style.width = data.progress + '%';
+    });
+    socket.on('completion', function(data) {
+      document.getElementById('progressMessage').innerText = data.message;
+      // After a brief delay, redirect to the results page.
+      setTimeout(function() {
+         window.location.href = '/bulk_port_results';
+      }, 2000);
+    });
+  </script>
+</body>
+</html>

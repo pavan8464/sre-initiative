@@ -1,0 +1,13 @@
+hostname,start_port,end_port
+google.com,70,450
+facebook.com,70,450
+amazon.com,440,450
+,,
+apple.com,440,450
+service-now.com,440,450
+aig.com,440,450
+lrc.intdev.aig.net,440,450
+sp3.contact.aig.net,440,450
+plawwtcm17604,9500,10050
+test.com,440,450
+self-signed.badssl.com,440,450

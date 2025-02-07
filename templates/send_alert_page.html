@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Send Alert</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        textarea {
+            width: 100%;
+            resize: none;
+        }
+        .button {
+            margin-top: 15px;
+        }
+        .error {
+            color: red;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #280606;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .status-valid {
+            color: green;
+            font-weight: bold;
+        }
+        .status-expired {
+            color: red;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .status-unreachable {
+            color: gray;
+            font-weight: bold;
+        }
+        .alert-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .alert-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Send Alert for {{ hostname }}</h1>
+
+        <!-- Display flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert alert-dismissible">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('send_alert_route') }}" method="POST">
+            <input type="hidden" name="hostname" value="{{ hostname }}">
+
+            <div class="section">
+                <label for="recipients">Recipients (Editable):</label>
+                <textarea name="recipients" rows="3" cols="50">{{ recipients|join(', ') }}</textarea>
+            </div>
+
+            <div class="section">
+                <label>Message: {{ result.status }}</label>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hostname</th>
+                        <th>Port</th>
+                        <th>Reachable</th>
+                        <th>TLS Version</th>
+                        <th>Certificate Expiry</th>
+                        <th>Days Left</th>
+                        <th>Certificate Issuer</th>
+                        <th>Certificate Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ result.hostname }}</td>
+                        <td>{{ result.port if result.port else 'Invalid Port' }}</td>
+                        <td>{{ 'Yes' if result.reachable else 'No' }}</td>
+                        <td>{{ ', '.join(result.tls_version) if result.tls_version else 'N/A' }}</td>
+                        <td>{{ result.certificate.valid_to if result.certificate else 'N/A' }}</td>
+                        <td>{{ result.days_left if result.days_left is not none else 'N/A' }}</td>
+                        <td>{{ result.certificate.issuer if result.certificate else 'N/A' }}</td>
+                        <td>{{ result.certificate.type if result.certificate else 'N/A' }}</td>
+                        <td>
+                            {% if result.status == 'Invalid Port' %}
+                                <span class="status-warning">Invalid Port</span>
+                            {% elif result.status == 'Host Unreachable' %}
+                                <span class="status-unreachable">Host Unreachable</span>
+                            {% else %}
+                                <span class="status-valid">Valid</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <button type="submit" class="button alert-button">Send Alert</button>
+        </form>
+    </div>
+</body>
+</html>

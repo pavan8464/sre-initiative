@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Certificate Check Results</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #8594e5; /* light sky blue */
+    }
+    .container {
+      max-width: 800px;
+      margin: 50px auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .section h2 {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #007BFF;
+    }
+    .info {
+      font-size: 16px;
+      color: #555;
+      line-height: 1.6;
+      margin-bottom: 5px;
+    }
+    .button-container {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+    }
+    .button-container a {
+      text-decoration: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      font-size: 16px;
+      color: #fff;
+    }
+    .back-btn {
+      background-color: #6c757d;
+    }
+    .check-btn {
+      background-color: #007BFF;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Check Results</h1>
+    <div class="section">
+      <div class="info"><strong>Hostname:</strong> {{ result.hostname }}</div>
+      <div class="info"><strong>Checked Port:</strong> {{ result.checked_ports_range }}</div>
+      <div class="info"><strong>Common Name:</strong> {{ result.common_name }}</div>
+    </div>
+    <div class="section">
+      <h2>Connection Details</h2>
+      <div class="info"><strong>Reachable:</strong> {{ result.reachable }}</div>
+    </div>
+    <div class="section">
+      <h2>Certificate Details</h2>
+      <div class="info"><strong>Port:</strong> 443</div>
+      <div class="info"><strong>TLS Versions Supported:</strong> {{ result.tls_version | join(", ") if result.tls_version else "N/A" }}</div>
+      <div class="info"><strong>Certificate Issuer:</strong> {{ result.certificate.issuer if result.certificate and result.certificate.issuer else "N/A" }}</div>
+      <div class="info"><strong>Valid From:</strong> {{ result.certificate.valid_from if result.certificate and result.certificate.valid_from else "N/A" }}</div>
+      <div class="info"><strong>Valid To:</strong> {{ result.certificate.valid_to if result.certificate and result.certificate.valid_to else "N/A" }}</div>
+      <div class="info"><strong>Days Left:</strong> {{ result.days_left if result.days_left is not none else "N/A" }}</div>
+    </div>
+    <div class="button-container">
+      <a href="{{ url_for('home') }}" class="back-btn">Back to Home</a>
+      <a href="{{ url_for('certificate_single_form') }}" class="check-btn">Perform Another Check</a>
+    </div>
+  </div>
+</body>
+</html>

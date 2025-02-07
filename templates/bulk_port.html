@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Port Check - Bulk Hosts</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+  <h1>Port Check for Bulk Hosts</h1>
+  <form action="{{ url_for('port_bulk_check') }}" method="POST" enctype="multipart/form-data">
+    <label for="csv_file">Upload CSV File (with columns: hostname, start_port, end_port):</label>
+    <input type="file" name="csv_file" id="csv_file" required>
+    <button type="submit">Check Ports</button>
+  </form>
+  <a href="{{ url_for('home') }}">Back to Home</a>
+</body>
+</html>

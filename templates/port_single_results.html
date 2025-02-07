@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Port Results for Single Host</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      background: #fff;
+      margin: 50px auto;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .title {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 30px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .result-section {
+      margin-bottom: 20px;
+    }
+    .result-section label {
+      font-weight: bold;
+      display: inline-block;
+      width: 120px;
+    }
+    .open-ports-box {
+      border: 1px solid #ddd;
+      padding: 10px;
+      background: #fafafa;
+      border-radius: 4px;
+      min-height: 50px;
+      margin-top: 5px;
+    }
+    .button-container {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+    }
+    .button-container a {
+      text-decoration: none;
+      padding: 10px 20px;
+      background: #007bff;
+      color: #fff;
+      border-radius: 4px;
+      text-align: center;
+      flex: 1;
+      margin: 0 5px;
+    }
+    .button-container a:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">Port Results for Single Host</div>
+    
+    <div class="result-section">
+      <label>Host:</label>
+      <span>{{ result.hostname }}</span>
+    </div>
+    
+    <div class="result-section">
+      <label>Port Range:</label>
+      <span>{{ result.checked_ports_range }}</span>
+    </div>
+    
+    <div class="result-section">
+      <label>Open Ports:</label>
+      <div class="open-ports-box">
+        {% if result.open_ports %}
+          <ul style="list-style: none; padding: 0; margin: 0;">
+            {% for port in result.open_ports %}
+              <li>{{ port }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No open ports found.</p>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="button-container">
+      <a href="{{ url_for('home') }}">Back to Home</a>
+      <a href="{{ url_for('port_single_form') }}">Check Another Host</a>
+    </div>
+  </div>
+</body>
+</html>

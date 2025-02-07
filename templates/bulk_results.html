@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bulk Check Results</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .status-valid {
+            color: green;
+            font-weight: bold;
+        }
+        .status-expired {
+            color: red;
+            font-weight: bold;
+        }
+        .status-warning {
+            color: orange;
+            font-weight: bold;
+        }
+        .status-unreachable {
+            color: gray;
+            font-weight: bold;
+        }
+        .alert-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .alert-button:hover {
+            background-color: #0056b3;
+        }
+        /* Header container for Back button and Export options */
+        .header-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header-left {
+            /* Left side styles (Back button) */
+        }
+        .header-right {
+            /* Right side styles (Export buttons) */
+        }
+        .export-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+        .export-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bulk Check Results</h1>
+    
+    <div class="header-options">
+        <div class="header-left">
+            <button onclick="window.location.href='/'">Back</button>
+        </div>
+        <div class="header-right">
+            <button onclick="window.location.href='/export_csv';" class="export-button">Export to CSV</button>
+            <button onclick="window.location.href='/export_pdf';" class="export-button">Export to PDF</button>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Hostname</th>
+                <th>Port</th>
+                <th>Reachable</th>
+                <th>TLS Version</th>
+                <th>Certificate Expiry</th>
+                <th>Days Left</th>
+                <th>Certificate Issuer</th>
+                <th>Common Name</th>
+                <th>Certificate Type</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for result in results %}
+            <tr>
+                <td>{{ result.hostname }}</td>
+                <td>{{ result.port if result.port else 'Invalid Port' }}</td>
+                <td>{{ 'Yes' if result.reachable else 'No' }}</td>
+                <td>{{ result.tls_version | join(", ") if result.tls_version else 'N/A' }}</td>
+                <td>{{ result.certificate.valid_to if result.certificate and result.certificate.valid_to else 'N/A' }}</td>
+                <td>{{ result.days_left if result.days_left is not none else 'N/A' }}</td>
+                <td>{{ result.certificate.issuer if result.certificate and result.certificate.issuer else 'N/A' }}</td>
+                <td>{{ result.certificate.common_name if result.certificate and result.certificate.common_name else 'N/A' }}</td>
+                <td>
+                    {% if result.certificate_type %}
+                        {{ result.certificate_type }}
+                    {% elif result.certificate and result.certificate.issuer and result.certificate.subject %}
+                        {% set issuer = result.certificate.issuer|string %}
+                        {% set subject = result.certificate.subject|string %}
+                        {% if issuer == subject %}
+                            Self Signed
+                        {% else %}
+                            Not Self Signed
+                        {% endif %}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>
+                    {% if result.status == 'Invalid Port' %}
+                        <span class="status-warning">Invalid Port</span>
+                    {% elif result.status == 'Host Unreachable' %}
+                        <span class="status-unreachable">Host Unreachable</span>
+                    {% else %}
+                        <span class="status-valid">Valid</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form action="{{ url_for('send_alert_page') }}" method="GET" style="display: inline;">
+                        <input type="hidden" name="hostname" value="{{ result.hostname }}">
+                        <input type="hidden" name="port" value="{{ result.port }}">
+                        <input type="hidden" name="recipients" value="{{ result.recipients }}">
+                        <button type="submit" class="alert-button" {% if result.status == 'Invalid Port' %}disabled{% endif %}>Send Alert</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
