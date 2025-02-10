@@ -1,0 +1,13 @@
+hostname,port,recipients
+google.com,443,"email1@example.com, email2@example.com"
+facebook.com,443,"test1@example.com, test2@example.com"
+amazon.com,443,"test3@example.com, test4@example.com"
+,,
+apple.com,443,"test5@example.com, test6@example.com"
+service-now.com,443,"test7@example.com, test8@example.com"
+aig.com,443,"test9@example.com, test10@example.com"
+lrc.intdev.aig.net,443,"test11@example.com, test12@example.com"
+sp3.contact.aig.net,443,pavan@mailinator.com
+plawwtcm17604,10001,"test15@example.com, test16@example.com"
+test.com,443,"test17@example.com, test18@example.com"
+self-signed.badssl.com,443,test143@gmail.com

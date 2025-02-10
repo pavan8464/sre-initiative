@@ -3,15 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <title>Port Check - Bulk Hosts</title>
-  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <style>
+    /* Additional styling specific to bulk_port.html */
+    .container {
+      max-width: 500px;
+      margin: 50px auto;
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 10px;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #1ba3dd;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    a.back-btn {
+      display: inline-block;
+      margin-top: 20px;
+      background-color: #6c757d;
+      color: #fff;
+      padding: 10px 20px;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    a.back-btn:hover {
+      background-color: #5a6268;
+    }
+  </style>
 </head>
 <body>
-  <h1>Port Check for Bulk Hosts</h1>
-  <form action="{{ url_for('port_bulk_check') }}" method="POST" enctype="multipart/form-data">
-    <label for="csv_file">Upload CSV File (with columns: hostname, start_port, end_port):</label>
-    <input type="file" name="csv_file" id="csv_file" required>
-    <button type="submit">Check Ports</button>
-  </form>
-  <a href="{{ url_for('home') }}">Back to Home</a>
+  <div class="container">
+    <h1>Port Check for Bulk Hosts</h1>
+    <form action="{{ url_for('port_bulk_check') }}" method="POST" enctype="multipart/form-data">
+      <label for="csv_file">Upload CSV File (with columns: hostname, start_port, end_port):</label>
+      <input type="file" name="csv_file" id="csv_file" required>
+      <button type="submit">Check Ports</button>
+    </form>
+    <a href="{{ url_for('home') }}" class="back-btn">Back to Home</a>
+  </div>
 </body>
 </html>

@@ -5,18 +5,28 @@
   <title>SRE Toolkit Home</title>
   <!-- Link to the external stylesheet -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-  <!-- Google Font for signature -->
-  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  <!-- Example Google Font for signature; change as desired -->
+  <link href="https://fonts.googleapis.com/css2?family=Satisfy&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Cloud elements -->
-  <div class="cloud cloud1"></div>
-  <div class="cloud cloud2"></div>
-  <div class="cloud cloud3"></div>
+  <!-- Common Header Bar -->
+  <header class="header-bar">
+    <div class="header-content">
+      <span class="site-title">SRE Toolkit</span>
+    </div>
+  </header>
+  
+  <!-- Contact Us Button (fixed at top right) -->
+  <div class="contact-us">
+    <button id="contactBtn" onclick="toggleContact()">Contact Us</button>
+    <div id="contactBox" class="contact-box">
+      <p>Please drop an email to the below email:</p>
+      <p><strong>email@gmail.com</strong></p>
+    </div>
+  </div>
   
   <!-- Main Content -->
   <div class="content">
-    <h1>SRE Toolkit</h1>
     <div class="buttons">
       <a href="{{ url_for('certificate_single_form') }}" class="button">Certificate Check for Single Host</a>
       <a href="{{ url_for('certificate_bulk_form') }}" class="button">Certificate Details Check for Bulk Host</a>
@@ -27,7 +37,27 @@
   
   <!-- Fixed Signature -->
   <div class="signature">
-    Made with <span class="heart">♥</span> by<br> Pavan Kellikoti
+    Designed and Developed<br>by<br> GI SRE
   </div>
+  
+  <script>
+    // Toggle the display of the contact box when clicking the Contact Us button.
+    function toggleContact() {
+      var box = document.getElementById("contactBox");
+      if (box.style.display === "none" || box.style.display === "") {
+        box.style.display = "block";
+      } else {
+        box.style.display = "none";
+      }
+    }
+    // Hide the contact box when clicking outside of it.
+    document.addEventListener("click", function(e) {
+      var box = document.getElementById("contactBox");
+      var btn = document.getElementById("contactBtn");
+      if (box && btn && !box.contains(e.target) && !btn.contains(e.target)) {
+        box.style.display = "none";
+      }
+    });
+  </script>
 </body>
 </html>
