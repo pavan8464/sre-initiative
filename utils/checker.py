@@ -173,11 +173,17 @@ def parse_der_cert(der_cert):
     if expiry_date.tzinfo is not None:
         expiry_date = expiry_date.astimezone(timezone.utc).replace(tzinfo=None)
     expiry_str = expiry_date.strftime("%b %d %H:%M:%S %Y GMT")
+    # *** NEW: Get the certificate's valid-from date. ***
+    valid_from = cert_obj.not_valid_before
+    if valid_from.tzinfo is not None:
+        valid_from = valid_from.astimezone(timezone.utc).replace(tzinfo=None)
+    valid_from_str = valid_from.strftime("%b %d %H:%M:%S %Y GMT")
     
     return {
         "subject": subject,
         "issuer": issuer,
         "common_name": common_name,
+        "valid_from": valid_from_str, 
         "valid_to": expiry_str,        # For export purposes.
         "expiry_date": expiry_date     # For internal calculation.
     }
