@@ -3,7 +3,14 @@ import socket
 import warnings
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.x509.oid import NameOID
+
+##############################################
+#   Basic Network and Certificate Functions  #
+##############################################
 
 def check_network_connection(hostname, port):
     try:
@@ -18,7 +25,15 @@ def is_self_signed(cert):
     # A simple comparison: if issuer equals subject, assume self-signed.
     return cert.get("issuer") == cert.get("subject")
 
+##############################################
+#   Legacy TLS & Certificate Extraction      #
+##############################################
+
 def get_tls_and_certificate_details(hostname, port=443):
+    """
+    This function uses the standard ssl socket's getpeercert() method to extract
+    TLS version and certificate details. (It may be used for legacy purposes.)
+    """
     try:
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         versions = {
@@ -45,7 +60,10 @@ def get_tls_and_certificate_details(hostname, port=443):
             issuer_details = "\n".join(
                 f"- {name}: {value}" for item in cert.get('issuer', []) for name, value in item
             )
-            common_name = next((value for field in cert.get("subject", []) for key, value in field if key == "commonName"), "Unknown")
+            common_name = next(
+                (value for field in cert.get("subject", []) for key, value in field if key == "commonName"),
+                "Unknown"
+            )
             return {
                 'valid_from': cert.get('notBefore', 'Unknown'),
                 'valid_to': cert.get('notAfter', 'Unknown'),
@@ -73,6 +91,10 @@ def get_tls_and_certificate_details(hostname, port=443):
         return None, None
 
 def determine_cert_status(cert_valid_to):
+    """
+    Given a certificate expiry string (e.g. "Apr 14 08:36:03 2025 GMT"),
+    determine the status and the number of days left.
+    """
     if not cert_valid_to:
         return "Invalid", None
     try:
@@ -87,42 +109,202 @@ def determine_cert_status(cert_valid_to):
         print(f"Error determining certificate status: {e}")
         return "Invalid", None
 
+##############################################
+#   New DER-based Certificate Extraction     #
+##############################################
+
+def get_der_certificate(hostname, port=443):
+    """
+    Attempts to get the DER-encoded certificate from the host.
+    First, it uses the wrapped socket’s getpeercert(binary_form=True).
+    If that fails, it falls back to using ssl.get_server_certificate.
+    """
+    try:
+        context = ssl._create_unverified_context()
+        with socket.create_connection((hostname, port), timeout=10) as sock:
+            with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                der_cert = ssock.getpeercert(binary_form=True)
+                if der_cert:
+                    return der_cert
+    except Exception:
+        pass
+    # Fallback using get_server_certificate (returns PEM)
+    try:
+        pem_cert = ssl.get_server_certificate((hostname, port))
+        der_cert = ssl.PEM_cert_to_DER_cert(pem_cert)
+        return der_cert
+    except Exception:
+        return None
+
+def parse_der_cert(der_cert):
+    """
+    Parses a DER-encoded certificate using the cryptography library and
+    returns a dictionary with certificate details.
+    """
+    cert_obj = x509.load_der_x509_certificate(der_cert, default_backend())
+    
+    # Build subject dictionary.
+    subject = {}
+    for attribute in cert_obj.subject:
+        try:
+            key = attribute.oid._name  # friendly name if available
+        except AttributeError:
+            key = attribute.oid.dotted_string
+        subject[key] = attribute.value
+
+    # Build issuer dictionary.
+    issuer = {}
+    for attribute in cert_obj.issuer:
+        try:
+            key = attribute.oid._name
+        except AttributeError:
+            key = attribute.oid.dotted_string
+        issuer[key] = attribute.value
+
+    # Get common name (if available)
+    try:
+        common_name = cert_obj.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+    except Exception:
+        common_name = None
+
+    # Get the certificate's expiration date.
+    expiry_date = cert_obj.not_valid_after
+    # Convert to naive UTC if timezone aware.
+    if expiry_date.tzinfo is not None:
+        expiry_date = expiry_date.astimezone(timezone.utc).replace(tzinfo=None)
+    expiry_str = expiry_date.strftime("%b %d %H:%M:%S %Y GMT")
+    
+    return {
+        "subject": subject,
+        "issuer": issuer,
+        "common_name": common_name,
+        "valid_to": expiry_str,        # For export purposes.
+        "expiry_date": expiry_date     # For internal calculation.
+    }
+
+def get_supported_tls_versions(hostname, port=443):
+    """
+    Attempts to connect to the host while forcing different TLS versions.
+    Returns a list of TLS version strings that the host supports.
+    """
+    supported = []
+    try:
+        from ssl import TLSVersion
+        tls_versions = [TLSVersion.TLSv1, TLSVersion.TLSv1_1, TLSVersion.TLSv1_2, TLSVersion.TLSv1_3]
+        version_names = {
+            TLSVersion.TLSv1: "TLSv1",
+            TLSVersion.TLSv1_1: "TLSv1.1",
+            TLSVersion.TLSv1_2: "TLSv1.2",
+            TLSVersion.TLSv1_3: "TLSv1.3",
+        }
+        for ver in tls_versions:
+            try:
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                # Force the context to use a specific TLS version:
+                context.minimum_version = ver
+                context.maximum_version = ver
+                with socket.create_connection((hostname, port), timeout=10) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        supported.append(version_names[ver])
+            except Exception:
+                pass
+    except ImportError:
+        # Fallback if TLSVersion is not available.
+        protocols = [
+            (ssl.PROTOCOL_TLSv1, "TLSv1"),
+            (ssl.PROTOCOL_TLSv1_1, "TLSv1.1"),
+            (ssl.PROTOCOL_TLSv1_2, "TLSv1.2"),
+        ]
+        for proto, name in protocols:
+            try:
+                context = ssl.SSLContext(proto)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+                with socket.create_connection((hostname, port), timeout=10) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        supported.append(name)
+            except Exception:
+                pass
+    return supported
+
+##############################################
+#   Main Certificate Check Function          #
+##############################################
+
 def check_host(hostname, port=443):
+    """
+    Checks a host's certificate details.
+    It:
+      - Verifies network connectivity.
+      - Retrieves a list of supported TLS versions.
+      - Obtains the DER-encoded certificate and parses it.
+      - Calculates the number of days left until expiry.
+      - Determines if the certificate is self-signed.
+    """
     result = {
         'hostname': hostname,
         'port': port,
         'reachable': False,
-        'tls_version': None,
+        'tls_version': [],
         'certificate': {},
         'status': "No Certificate",
         'days_left': None,
-        'common_name': None
+        'common_name': None,
+        'certificate_type': None,
     }
     try:
+        # Check network connectivity.
         reachable = check_network_connection(hostname, port)
         result['reachable'] = reachable
         if not reachable:
             result['status'] = "Host Unreachable"
             return result
-        tls_version, cert_details = get_tls_and_certificate_details(hostname, port)
-        result['tls_version'] = tls_version
-        result['certificate'] = cert_details or {}
-        if cert_details:
-            result['common_name'] = cert_details.get("common_name")
-        if not cert_details:
-            result['status'] = "No Certificate"
+
+        # Get all supported TLS versions.
+        result['tls_version'] = get_supported_tls_versions(hostname, port)
+
+        # Retrieve the server's certificate in DER form.
+        der_cert = get_der_certificate(hostname, port)
+        if der_cert:
+            parsed_cert = parse_der_cert(der_cert)
         else:
-            if cert_details.get('valid_to'):
-                status, days_left = determine_cert_status(cert_details.get('valid_to'))
-                result['status'] = status
-                result['days_left'] = days_left
+            parsed_cert = {}
+
+        if parsed_cert:
+            # Extract subject and issuer.
+            subject = parsed_cert.get("subject", {})
+            issuer = parsed_cert.get("issuer", {})
+            result['common_name'] = parsed_cert.get("common_name", None)
+            
+            # Determine if the certificate is self-signed.
+            if subject and issuer and subject == issuer:
+                result['certificate_type'] = "Self Signed"
             else:
-                result['status'] = "No Certificate"
-                result['days_left'] = None
+                result['certificate_type'] = "Not Self Signed"
+
+            result['certificate'] = parsed_cert
+
+            # Process certificate expiration details.
+            expiry_date = parsed_cert.get("expiry_date")
+            if expiry_date:
+                now = datetime.utcnow()
+                days_left = (expiry_date - now).days
+                result['days_left'] = days_left
+                result['status'] = "Valid" if days_left >= 0 else "Expired"
+            else:
+                result['status'] = "No Expiry Info"
+        else:
+            result['status'] = "No Certificate"
     except Exception as e:
-        result['status'] = "Error"
+        result['status'] = "Error: " + str(e)
         result['days_left'] = None
     return result
+
+##############################################
+#   Bulk Processing Functions                #
+##############################################
 
 def process_bulk_hosts(file_path):
     results = []
@@ -196,6 +378,5 @@ def process_bulk_ports(file_path):
         print(f"Error processing bulk ports: {e}")
     return results
 
-# Add the missing function so it can be imported from app.py
 def check_bulk_hosts(file_path):
     return process_bulk_hosts(file_path)
