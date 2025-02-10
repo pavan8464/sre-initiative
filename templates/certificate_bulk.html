@@ -4,9 +4,10 @@
   <meta charset="UTF-8">
   <title>Certificate Check - Bulk Hosts</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <!-- Include Google Font for signature if needed -->
+  <link href="https://fonts.googleapis.com/css2?family=Satisfy&display=swap" rel="stylesheet">
   <style>
-    /* Additional styling for this page */
-    /* Sample File button fixed at top right */
+    /* Fixed Sample File Button at top right */
     .sample-file {
       position: fixed;
       top: 10px;
@@ -22,6 +23,7 @@
     .sample-file:hover {
       background-color: #3b73af;
     }
+    
     /* White card container */
     .container {
       max-width: 600px;
@@ -31,6 +33,7 @@
       border-radius: 8px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       text-align: center;
+      position: relative;
     }
     h1 {
       font-size: 24px;
@@ -53,8 +56,9 @@
       border: 1px solid #ccc;
       border-radius: 4px;
       font-size: 16px;
+      box-sizing: border-box;
     }
-    button {
+    button.check-btn {
       background-color: #1ba3dd;
       color: #fff;
       padding: 10px 20px;
@@ -64,7 +68,7 @@
       font-size: 16px;
       transition: background-color 0.3s ease;
     }
-    button:hover {
+    button.check-btn:hover {
       background-color: #0056b3;
     }
     a.back-btn {
@@ -80,19 +84,106 @@
     a.back-btn:hover {
       background-color: #5a6268;
     }
+    /* Progress area styling */
+    .progress-area {
+      display: none;
+      margin-top: 20px;
+    }
+    .progress-message {
+      font-size: 16px;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    progress {
+      width: 100%;
+      height: 20px;
+    }
   </style>
+  <script>
+    // Global variable to store the number of data rows (excluding blank lines and header row, if any)
+    let totalRows = 0;
+    
+    document.addEventListener("DOMContentLoaded", function() {
+      const csvInput = document.getElementById("csv_file");
+      csvInput.addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(event) {
+            const text = event.target.result;
+            // Split by newlines and filter out any empty lines
+            let lines = text.split(/\r\n|\n/).filter(line => line.trim() !== "");
+            // If the first line looks like a header (contains "hostname" or "port"), subtract one.
+            if (lines.length > 0 &&
+                (lines[0].toLowerCase().includes("hostname") || lines[0].toLowerCase().includes("port"))) {
+              totalRows = lines.length - 1;
+            } else {
+              totalRows = lines.length;
+            }
+            console.log("Total data rows (after filtering):", totalRows);
+          };
+          reader.readAsText(file);
+        }
+      });
+    });
+    
+    // When the form is submitted, disable the button, show the progress area,
+    // and simulate progress updates slowly so that it doesn’t finish too fast.
+    function submitForm(event) {
+      event.preventDefault();
+      
+      // Disable and hide the check button to prevent multiple submissions.
+      var checkButton = document.getElementById("checkButton");
+      checkButton.disabled = true;
+      checkButton.style.display = "none";
+      
+      // Show the progress area.
+      var progressArea = document.getElementById("progressArea");
+      progressArea.style.display = "block";
+      
+      var progressBar = document.getElementById("progressBar");
+      var progressMessage = document.getElementById("progressMessage");
+      
+      // If totalRows is still 0, assume at least one data row.
+      if (totalRows === 0) {
+        totalRows = 1;
+      }
+      
+      // Set an interval so that each row takes about 3 seconds.
+      var intervalDuration = 3000; // 3000 ms (3 seconds) per row.
+      var currentRow = 0;
+      var interval = setInterval(function(){
+         currentRow++;
+         // Calculate progress percentage.
+         var progressPercent = (currentRow / totalRows) * 100;
+         progressBar.value = progressPercent;
+         progressMessage.textContent = "Processing row " + currentRow + " of " + totalRows;
+         // Stop the simulation if we have reached (or exceeded) the total.
+         if (currentRow >= totalRows) {
+           clearInterval(interval);
+         }
+      }, intervalDuration);
+      
+      // Finally, submit the form so that the backend begins processing.
+      event.target.submit();
+    }
+  </script>
 </head>
 <body>
   <!-- Fixed Sample File Button (Top Right) -->
-  <a href="{{ url_for('static', filename='sample_hosts.csv') }}" class="sample-file" download>Sample File</a>
+  <a href="{{ url_for('static', filename='sample.csv') }}" class="sample-file" download>Sample File</a>
   
   <div class="container">
     <h1>Certificate Details Check for Bulk Host</h1>
-    <form action="{{ url_for('bulk_check') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ url_for('bulk_check') }}" method="POST" enctype="multipart/form-data" onsubmit="submitForm(event)">
       <label for="csv_file">Upload CSV File:</label>
       <input type="file" name="csv_file" id="csv_file" required>
-      <button type="submit">Check</button>
+      <button type="submit" id="checkButton" class="check-btn">Check</button>
     </form>
+    <div id="progressArea" class="progress-area">
+      <div id="progressMessage" class="progress-message">Processing file, please wait...</div>
+      <progress id="progressBar" value="0" max="100"></progress>
+    </div>
     <a href="{{ url_for('home') }}" class="back-btn">Back to Home</a>
   </div>
 </body>
