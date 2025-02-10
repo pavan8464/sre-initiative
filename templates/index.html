@@ -18,10 +18,11 @@
   
   <!-- Contact Us Button (fixed at top right) -->
   <div class="contact-us">
-    <button id="contactBtn" onclick="toggleContact()">Contact Us</button>
-    <div id="contactBox" class="contact-box">
+    <button id="contact-btn">Contact Us</button>
+    <!-- Added id="contact-box" so JS can toggle this element -->
+    <div id="contact-box" class="contact-box">
       <p>Please drop an email to the below email:</p>
-      <p><strong>email@gmail.com</strong></p>
+      <div class="email-address">GI_prod_mgmt_cloud_SRE@aig.com</div>
     </div>
   </div>
   
@@ -37,23 +38,28 @@
   
   <!-- Fixed Signature -->
   <div class="signature">
-    Designed and Developed<br>by<br> GI SRE
+    Designed and Developed<br>by<br>GI SRE
   </div>
   
+  <!-- JavaScript to toggle the contact box -->
   <script>
     // Toggle the display of the contact box when clicking the Contact Us button.
-    function toggleContact() {
-      var box = document.getElementById("contactBox");
+    document.getElementById("contact-btn").addEventListener("click", function(e) {
+      var box = document.getElementById("contact-box");
       if (box.style.display === "none" || box.style.display === "") {
         box.style.display = "block";
       } else {
         box.style.display = "none";
       }
-    }
-    // Hide the contact box when clicking outside of it.
+      // Prevent the click event from bubbling up to the document
+      e.stopPropagation();
+    });
+    
+    // Hide the contact box when clicking anywhere outside it.
     document.addEventListener("click", function(e) {
-      var box = document.getElementById("contactBox");
-      var btn = document.getElementById("contactBtn");
+      var box = document.getElementById("contact-box");
+      var btn = document.getElementById("contact-btn");
+      // If the click target is not inside the contact box or the button, hide the box.
       if (box && btn && !box.contains(e.target) && !btn.contains(e.target)) {
         box.style.display = "none";
       }

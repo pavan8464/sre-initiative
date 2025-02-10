@@ -168,15 +168,17 @@ def parse_der_cert(der_cert):
         common_name = None
 
     # Get the certificate's expiration date.
-    expiry_date = cert_obj.not_valid_after
-    # Convert to naive UTC if timezone aware.
-    if expiry_date.tzinfo is not None:
-        expiry_date = expiry_date.astimezone(timezone.utc).replace(tzinfo=None)
+    # expiry_date = cert_obj.not_valid_after
+    # # Convert to naive UTC if timezone aware.
+    # if expiry_date.tzinfo is not None:
+    #     expiry_date = expiry_date.astimezone(timezone.utc).replace(tzinfo=None)
+    expiry_date = cert_obj.not_valid_after_utc
     expiry_str = expiry_date.strftime("%b %d %H:%M:%S %Y GMT")
     # *** NEW: Get the certificate's valid-from date. ***
-    valid_from = cert_obj.not_valid_before
-    if valid_from.tzinfo is not None:
-        valid_from = valid_from.astimezone(timezone.utc).replace(tzinfo=None)
+    # valid_from = cert_obj.not_valid_before
+    # if valid_from.tzinfo is not None:
+    #     valid_from = valid_from.astimezone(timezone.utc).replace(tzinfo=None)
+    valid_from = cert_obj.not_valid_before_utc
     valid_from_str = valid_from.strftime("%b %d %H:%M:%S %Y GMT")
     
     return {
@@ -295,7 +297,8 @@ def check_host(hostname, port=443):
             # Process certificate expiration details.
             expiry_date = parsed_cert.get("expiry_date")
             if expiry_date:
-                now = datetime.utcnow()
+                # now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 days_left = (expiry_date - now).days
                 result['days_left'] = days_left
                 result['status'] = "Valid" if days_left >= 0 else "Expired"
