@@ -3,18 +3,20 @@ import socket
 import warnings
 import csv
 import os
+import time  # Added for timing measurements
 from datetime import datetime, timezone
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import NameOID
+import concurrent.futures
 
 ##############################################
 #   Basic Network and Certificate Functions  #
 ##############################################
 
-def check_network_connection(hostname, port):
+def check_network_connection(hostname, port, timeout=3):
     try:
-        socket.create_connection((hostname, port), timeout=5)
+        socket.create_connection((hostname, port), timeout=timeout)
         return True
     except (socket.timeout, socket.error):
         return False
@@ -31,14 +33,13 @@ def is_self_signed(cert):
 
 def get_tls_and_certificate_details(hostname, port=443):
     """
-    This function uses the standard ssl socket's getpeercert() method to extract
-    TLS version and certificate details. (It may be used for legacy purposes.)
+    Legacy method using getpeercert() to extract TLS version and certificate details.
+    (Not used in the optimized code.)
     """
     try:
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        # Restrict to modern TLS versions.
         versions = {
-            'TLSv1': ssl.TLSVersion.TLSv1,
-            'TLSv1.1': ssl.TLSVersion.TLSv1_1,
             'TLSv1.2': ssl.TLSVersion.TLSv1_2,
             'TLSv1.3': ssl.TLSVersion.TLSv1_3
         }
@@ -48,7 +49,7 @@ def get_tls_and_certificate_details(hostname, port=443):
                 context = ssl.create_default_context()
                 context.minimum_version = version
                 context.maximum_version = version
-                with socket.create_connection((hostname, port), timeout=5) as conn:
+                with socket.create_connection((hostname, port), timeout=3) as conn:
                     with context.wrap_socket(conn, server_hostname=hostname) as sock:
                         cert = sock.getpeercert()
                         if cert and not is_self_signed(cert):
@@ -73,16 +74,16 @@ def get_tls_and_certificate_details(hostname, port=443):
             }
 
         context = ssl.create_default_context()
-        with socket.create_connection((hostname, port), timeout=5) as sock:
+        with socket.create_connection((hostname, port), timeout=3) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
                 cert_details = extract_cert_details(cert)
         if not is_self_signed(cert):
             return supported_versions, cert_details
-        # Handle self-signed certificates
+        # Handle self-signed certificates.
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
-        with socket.create_connection((hostname, port), timeout=5) as sock:
+        with socket.create_connection((hostname, port), timeout=3) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
                 cert_details = extract_cert_details(cert)
@@ -113,15 +114,14 @@ def determine_cert_status(cert_valid_to):
 #   New DER-based Certificate Extraction     #
 ##############################################
 
-def get_der_certificate(hostname, port=443):
+def get_der_certificate(hostname, port=443, timeout=3):
     """
     Attempts to get the DER-encoded certificate from the host.
-    First, it uses the wrapped socket’s getpeercert(binary_form=True).
-    If that fails, it falls back to using ssl.get_server_certificate.
+    Uses the wrapped socket’s getpeercert(binary_form=True), or falls back to PEM conversion.
     """
     try:
         context = ssl._create_unverified_context()
-        with socket.create_connection((hostname, port), timeout=10) as sock:
+        with socket.create_connection((hostname, port), timeout=timeout) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 der_cert = ssock.getpeercert(binary_form=True)
                 if der_cert:
@@ -167,17 +167,10 @@ def parse_der_cert(der_cert):
     except Exception:
         common_name = None
 
-    # Get the certificate's expiration date.
-    # expiry_date = cert_obj.not_valid_after
-    # # Convert to naive UTC if timezone aware.
-    # if expiry_date.tzinfo is not None:
-    #     expiry_date = expiry_date.astimezone(timezone.utc).replace(tzinfo=None)
+    # Use new UTC properties to avoid deprecation warnings.
     expiry_date = cert_obj.not_valid_after_utc
     expiry_str = expiry_date.strftime("%b %d %H:%M:%S %Y GMT")
-    # *** NEW: Get the certificate's valid-from date. ***
-    # valid_from = cert_obj.not_valid_before
-    # if valid_from.tzinfo is not None:
-    #     valid_from = valid_from.astimezone(timezone.utc).replace(tzinfo=None)
+    
     valid_from = cert_obj.not_valid_before_utc
     valid_from_str = valid_from.strftime("%b %d %H:%M:%S %Y GMT")
     
@@ -190,7 +183,7 @@ def parse_der_cert(der_cert):
         "expiry_date": expiry_date     # For internal calculation.
     }
 
-def get_supported_tls_versions(hostname, port=443):
+def get_supported_tls_versions(hostname, port=443, timeout=3):
     """
     Attempts to connect to the host while forcing different TLS versions.
     Returns a list of TLS version strings that the host supports.
@@ -198,10 +191,9 @@ def get_supported_tls_versions(hostname, port=443):
     supported = []
     try:
         from ssl import TLSVersion
-        tls_versions = [TLSVersion.TLSv1, TLSVersion.TLSv1_1, TLSVersion.TLSv1_2, TLSVersion.TLSv1_3]
+        # Limit to modern versions.
+        tls_versions = [TLSVersion.TLSv1_2, TLSVersion.TLSv1_3]
         version_names = {
-            TLSVersion.TLSv1: "TLSv1",
-            TLSVersion.TLSv1_1: "TLSv1.1",
             TLSVersion.TLSv1_2: "TLSv1.2",
             TLSVersion.TLSv1_3: "TLSv1.3",
         }
@@ -210,10 +202,9 @@ def get_supported_tls_versions(hostname, port=443):
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
-                # Force the context to use a specific TLS version:
                 context.minimum_version = ver
                 context.maximum_version = ver
-                with socket.create_connection((hostname, port), timeout=10) as sock:
+                with socket.create_connection((hostname, port), timeout=timeout) as sock:
                     with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                         supported.append(version_names[ver])
             except Exception:
@@ -221,8 +212,6 @@ def get_supported_tls_versions(hostname, port=443):
     except ImportError:
         # Fallback if TLSVersion is not available.
         protocols = [
-            (ssl.PROTOCOL_TLSv1, "TLSv1"),
-            (ssl.PROTOCOL_TLSv1_1, "TLSv1.1"),
             (ssl.PROTOCOL_TLSv1_2, "TLSv1.2"),
         ]
         for proto, name in protocols:
@@ -230,7 +219,7 @@ def get_supported_tls_versions(hostname, port=443):
                 context = ssl.SSLContext(proto)
                 context.check_hostname = False
                 context.verify_mode = ssl.CERT_NONE
-                with socket.create_connection((hostname, port), timeout=10) as sock:
+                with socket.create_connection((hostname, port), timeout=timeout) as sock:
                     with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                         supported.append(name)
             except Exception:
@@ -243,14 +232,15 @@ def get_supported_tls_versions(hostname, port=443):
 
 def check_host(hostname, port=443):
     """
-    Checks a host's certificate details.
-    It:
+    Checks a host's certificate details:
       - Verifies network connectivity.
-      - Retrieves a list of supported TLS versions.
-      - Obtains the DER-encoded certificate and parses it.
-      - Calculates the number of days left until expiry.
+      - Retrieves supported TLS versions.
+      - Obtains and parses the DER-encoded certificate.
+      - Calculates days left until expiry.
       - Determines if the certificate is self-signed.
+      - Records the time taken for the check.
     """
+    start_time = time.perf_counter()
     result = {
         'hostname': hostname,
         'port': port,
@@ -261,27 +251,27 @@ def check_host(hostname, port=443):
         'days_left': None,
         'common_name': None,
         'certificate_type': None,
+        'time_taken': None  # New field to record check duration
     }
     try:
         # Check network connectivity.
-        reachable = check_network_connection(hostname, port)
+        reachable = check_network_connection(hostname, port, timeout=3)
         result['reachable'] = reachable
         if not reachable:
             result['status'] = "Host Unreachable"
             return result
 
-        # Get all supported TLS versions.
-        result['tls_version'] = get_supported_tls_versions(hostname, port)
+        # Get supported TLS versions.
+        result['tls_version'] = get_supported_tls_versions(hostname, port, timeout=3)
 
-        # Retrieve the server's certificate in DER form.
-        der_cert = get_der_certificate(hostname, port)
+        # Retrieve the DER-encoded certificate.
+        der_cert = get_der_certificate(hostname, port, timeout=3)
         if der_cert:
             parsed_cert = parse_der_cert(der_cert)
         else:
             parsed_cert = {}
 
         if parsed_cert:
-            # Extract subject and issuer.
             subject = parsed_cert.get("subject", {})
             issuer = parsed_cert.get("issuer", {})
             result['common_name'] = parsed_cert.get("common_name", None)
@@ -294,10 +284,9 @@ def check_host(hostname, port=443):
 
             result['certificate'] = parsed_cert
 
-            # Process certificate expiration details.
+            # Calculate certificate expiry details.
             expiry_date = parsed_cert.get("expiry_date")
             if expiry_date:
-                # now = datetime.utcnow()
                 now = datetime.now(timezone.utc)
                 days_left = (expiry_date - now).days
                 result['days_left'] = days_left
@@ -309,6 +298,10 @@ def check_host(hostname, port=443):
     except Exception as e:
         result['status'] = "Error: " + str(e)
         result['days_left'] = None
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+    result['time_taken'] = elapsed
+    print(f"Host {hostname}:{port} checked in {elapsed:.2f} seconds")
     return result
 
 ##############################################
@@ -316,33 +309,45 @@ def check_host(hostname, port=443):
 ##############################################
 
 def process_bulk_hosts(file_path):
+    overall_start = time.perf_counter()
     results = []
     try:
         with open(file_path, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
-            for idx, row in enumerate(csv_reader, start=1):
-                if not row:
-                    continue
-                hostname = row.get('hostname')
-                if not hostname:
-                    continue
-                try:
-                    port = int(row.get('port', 443))
-                except ValueError:
-                    port = 443
-                print(f"Processing row {idx}: hostname {hostname}, port {port}")
-                result = check_host(hostname, port)
-                if result:
-                    result['recipients'] = row.get('recipients')
-                    cert = result.get('certificate')
-                    if cert and cert != "N/A":
-                        if is_self_signed(cert):
-                            result['certificate_type'] = "Self Signed"
+            tasks = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                for idx, row in enumerate(csv_reader, start=1):
+                    if not row:
+                        continue
+                    hostname_field = row.get('hostname')
+                    if not hostname_field:
+                        continue
+                    # Support multiple hosts in one cell (comma-separated)
+                    hostnames = [h.strip() for h in hostname_field.split(",") if h.strip()]
+                    try:
+                        port = int(row.get('port', 443))
+                    except ValueError:
+                        port = 443
+                    for hostname in hostnames:
+                        print(f"Processing row {idx}: hostname {hostname}, port {port}")
+                        tasks.append(executor.submit(check_host, hostname, port))
+                for future in concurrent.futures.as_completed(tasks):
+                    result = future.result()
+                    if result:
+                        # Optionally add recipient information from the CSV row
+                        result['recipients'] = row.get('recipients')
+                        cert = result.get('certificate')
+                        if cert and cert != "N/A":
+                            if is_self_signed(cert):
+                                result['certificate_type'] = "Self Signed"
+                            else:
+                                result['certificate_type'] = "Not Self Signed"
                         else:
-                            result['certificate_type'] = "Not Self Signed"
-                    else:
-                        result['certificate_type'] = "N/A"
-                    results.append(result)
+                            result['certificate_type'] = "N/A"
+                        results.append(result)
+        overall_end = time.perf_counter()
+        total_time = overall_end - overall_start
+        print(f"Processed bulk hosts in {total_time:.2f} seconds")
     except FileNotFoundError:
         print(f"Error: File not found at path {file_path}")
     except Exception as e:
